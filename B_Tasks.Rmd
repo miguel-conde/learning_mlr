@@ -1,0 +1,202 @@
+---
+title: "mlR - Tasks"
+author: "Miguel Conde"
+date: "3 de marzo de 2017"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center")
+```
+
+```{r}
+require(mlr)
+```
+
+
+## Tasks
+
+The tasks are organized in a hierarchy, with the generic Task at the top. The following tasks can be instantiated and all inherit from the virtual superclass Task:
+
+* RegrTask for regression problems,
+* ClassifTask for binary and multi-class classification problems (cost-sensitive classification with class-dependent costs can be handled as well),
+* SurvTask for survival analysis,
+* ClusterTask for cluster analysis,
+* MultilabelTask for multilabel classification problems,
+* CostSensTask for general cost-sensitive classification (with example-specific costs).
+
+### Regression
+```{r}
+data(BostonHousing, package = "mlbench")
+
+## In addition to data, we have to specify the name of the target variable
+regr.task = makeRegrTask(id = "bh", data = BostonHousing, target = "medv")
+regr.task
+```
+
+### Classification
+The target column has to be a factor.
+```{r}
+data(BreastCancer, package = "mlbench")
+
+# Exclude the variable Id from all further model fitting and evaluation
+df = BreastCancer
+df$Id = NULL 
+
+classif.task = makeClassifTask(id = "BreastCancer", data = df, 
+                               target = "Class")
+classif.task
+```
+
+makeClassifTask by default selects the first factor level of the target variable as the positive class, in the above example benign. Class malignant can be manually selected as follows:
+```{r}
+classif.task = makeClassifTask(id = "BreastCancer", data = df, 
+                               target = "Class", positive = "malignant")
+
+```
+
+### Survival analysis
+Survival tasks use two target columns. For left and right censored problems these consist of the survival time and a binary event indicator. For interval censored data the two target columns must be specified in the "`interval2`" format.
+```{r}
+data(lung, package = "survival")
+lung$status = (lung$status == 2) # convert to logical
+
+surv.task = makeSurvTask(data = lung, target = c("time", "status"))
+surv.task
+```
+
+The type of censoring can be specified via the argument censoring, which defaults to "rcens" for right censored data.
+
+### Multilabel classification
+In multilabel classification each object can belong to more than one category at the same time.
+
+The data are expected to contain as many target columns as there are class labels. The target columns should be logical vectors that indicate which class labels are present. The names of the target columns are taken as class labels and need to be passed to the target argument of makeMultilabelTask.
+
+In the following example we get the data of the yeast data set, extract the label names, and pass them to the target argument in makeMultilabelTask.
+
+```{r}
+yeast = getTaskData(yeast.task)
+
+labels = colnames(yeast)[1:14]
+yeast.task = makeMultilabelTask(id = "multi", data = yeast, target = labels)
+yeast.task
+```
+
+
+### Cluster analysis
+As cluster analysis is unsupervised, the only mandatory argument to construct a cluster analysis task is the data.
+```{r}
+data(mtcars, package = "datasets")
+cluster.task = makeClusterTask(data = mtcars)
+cluster.task
+```
+
+
+### Cost-sensitive classification
+The standard objective in classification is to obtain a high prediction accuracy, i.e., to minimize the number of errors. All types of misclassification errors are thereby deemed equally severe. However, in many applications different kinds of errors cause different costs.
+
+In the following example we use the iris data and an artificial cost matrix:
+```{r}
+df = iris
+cost = matrix(runif(150 * 3, 0, 2000), 150) * (1 - diag(3))[df$Species,]
+df$Species = NULL
+
+costsens.task = makeCostSensTask(data = df, cost = cost)
+costsens.task
+```
+
+## Further settings
+
+For example, we could include a blocking factor in the task. This would indicate that some observations "belong together" and should not be separated when splitting the data into training and test sets for resampling.
+
+Another option is to assign weights to observations. These can simply indicate observation frequencies or result from the sampling scheme used to collect the data.
+Note that you should use this option only if the weights really belong to the task. If you plan to train some learning algorithms with different weights on the same Task, mlr offers several other ways to set observation or class weights (for supervised classification). See for example the tutorial page about training or function makeWeightedClassesWrapper.
+
+## Accessing a learning task
+
+```{r}
+getTaskDescription(classif.task)
+```
+
+```{r}
+getTaskId(classif.task)
+```
+
+```{r}
+getTaskType(classif.task)
+```
+
+
+```{r}
+getTaskTargetNames(classif.task)
+```
+
+
+```{r}
+getTaskSize(classif.task)
+```
+
+```{r}
+getTaskNFeats(classif.task)
+```
+
+```{r}
+getTaskClassLevels(classif.task)
+```
+
+
+Moreover, mlr provides several functions to extract data from a Task.
+
+```{r}
+## Accessing the data set in classif.task
+str(getTaskData(classif.task))
+```
+
+```{r}
+## Get the names of the input variables in cluster.task
+getTaskFeatureNames(cluster.task)
+```
+
+```{r}
+## Get the values of the target variables in surv.task
+head(getTaskTargets(surv.task))
+```
+
+```{r}
+## Get the cost matrix in costsens.task
+head(getTaskCosts(costsens.task))
+```
+
+## Modifying a learning task
+
+```{r}
+## Select observations and/or features
+cluster.task = subsetTask(cluster.task, subset = 4:17)
+```
+
+```{r}
+## It may happen, especially after selecting observations, that features are constant.
+## These should be removed.
+removeConstantFeatures(cluster.task)
+```
+
+```{r}
+## Remove selected features
+dropFeatures(surv.task, c("meal.cal", "wt.loss"))
+```
+
+
+```{r}
+## Standardize numerical features
+task = normalizeFeatures(cluster.task, method = "range")
+summary(getTaskData(task))
+
+```
+
+
