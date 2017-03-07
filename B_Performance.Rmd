@@ -1,0 +1,152 @@
+---
+title: "mlR - Evaluating Learner Performance"
+author: "Miguel Conde"
+date: "t de marzo de 2017"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center")
+```
+
+```{r}
+require(mlr)
+```
+
+## Performance measures
+
+Check the [table of performance measures](https://mlr-org.github.io/mlr-tutorial/release/html/measures/index.html) and the [measures documentation page](http://www.rdocumentation.org/packages/mlr/functions/measures.html).
+
+```{r}
+## Performance measures for classification with multiple classes
+listMeasures("classif", properties = "classif.multi")
+```
+
+```{r}
+## Performance measure suitable for the iris classification task
+listMeasures(iris.task)
+```
+
+Default measure for each type of learning problems:
+```{r}
+## Get default measure for iris.task
+getDefaultMeasure(iris.task)
+```
+
+```{r}
+## Get the default measure for linear regression
+getDefaultMeasure(makeLearner("regr.lm"))
+```
+
+### Calculate performance measures
+In the following example we fit a gradient boosting machine on a subset of the BostonHousing data set and calculate the default measure mean squared error (mse) on the remaining observations.
+
+```{r}
+n = getTaskSize(bh.task)
+lrn = makeLearner("regr.gbm", n.trees = 1000)
+mod = train(lrn, task = bh.task, subset = seq(1, n, 2))
+pred = predict(mod, task = bh.task, subset = seq(2, n, 2))
+
+performance(pred)
+```
+
+```{r}
+getDefaultMeasure(bh.task)
+```
+
+```{r}
+listMeasures(bh.task)
+```
+
+```{r}
+medse
+```
+
+
+```{r}
+performance(pred, measures = medse)
+```
+
+```{r}
+performance(pred, measures = list(mse, medse, mae))
+```
+
+### Requirements of performance measures
+Note that in order to calculate some performance measures it is required that you pass the Task or the fitted model in addition to the Prediction.
+
+For example in order to assess the time needed for training (timetrain), the fitted model has to be passed.
+```{r}
+performance(pred, measures = timetrain, model = mod)
+```
+
+For many performance measures in cluster analysis the Task is required.
+```{r}
+lrn = makeLearner("cluster.kmeans", centers = 3)
+mod = train(lrn, mtcars.task)
+pred = predict(mod, task = mtcars.task)
+
+## Calculate the Dunn index
+performance(pred, measures = dunn, task = mtcars.task)
+```
+
+Moreover, some measures require a certain type of prediction. For example in binary classification in order to calculate the AUC (auc) -- the area under the ROC (receiver operating characteristic) curve -- we have to make sure that posterior probabilities are predicted. 
+
+```{r}
+lrn = makeLearner("classif.rpart", predict.type = "prob")
+mod = train(lrn, task = sonar.task)
+pred = predict(mod, task = sonar.task)
+
+performance(pred, measures = auc)
+```
+
+### Access a performance measure
+Performance measures in mlr are objects of class Measure. If you are interested in the properties or requirements of a single measure you can access it directly. See the help page of Measure for information on the individual slots.
+
+```{r}
+## Mean misclassification error
+str(mmce)
+```
+
+## Binary classification
+
+### Plot performance versus threshold
+Helpful in this regard is are the functions generateThreshVsPerfData and plotThreshVsPerf, which generate and plot, respectively, the learner performance versus the threshold.
+
+Example:
+```{r}
+lrn = makeLearner("classif.lda", predict.type = "prob")
+n = getTaskSize(sonar.task)
+mod = train(lrn, task = sonar.task, subset = seq(1, n, by = 2))
+pred = predict(mod, task = sonar.task, subset = seq(2, n, by = 2))
+
+## Performance for the default threshold 0.5
+performance(pred, measures = list(fpr, fnr, mmce))
+```
+
+```{r}
+## Plot false negative and positive rates as well as the error rate versus the threshold
+d = generateThreshVsPerfData(pred, measures = list(fpr, fnr, mmce))
+plotThreshVsPerf(d)
+```
+There is an experimental ggvis plotting function plotThreshVsPerfGGVIS which performs similarly to plotThreshVsPerf but instead of creating facetted subplots to visualize multiple learners and/or multiple measures, one of them is mapped to an interactive sidebar which selects what to display.
+
+```{r eval = FALSE}
+plotThreshVsPerfGGVIS(d)
+```
+
+### ROC measures
+```{r}
+r = calculateROCMeasures(pred)
+r
+```
+
+```{r}
+print(r, abbreviations = FALSE)
+```
+
