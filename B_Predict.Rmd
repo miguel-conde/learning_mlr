@@ -145,10 +145,85 @@ pred2
 
 ```{r}
 ## We can also set the effect in the confusion matrix
-getConfMatrix(pred1)
+calculateConfusionMatrix(pred1)
 ```
 
 ```{r}
-getConfMatrix(pred2)
+calculateConfusionMatrix(pred2)
+```
+
+In the binary case `getPredictionProbabilities` by default extracts the posterior probabilities of the positive class only.
+```{r}
+head(getPredictionProbabilities(pred1))
+```
+
+```{r}
+head(getPredictionProbabilities(pred1, cl = c("M", "R")))
+```
+
+It works similarly for multiclass classification. The threshold has to be given by a named vector specifying the values by which each probability will be divided. The class with the maximum resulting value is then selected.
+
+```{r}
+lrn = makeLearner("classif.rpart", predict.type = "prob")
+mod = train(lrn, iris.task)
+pred = predict(mod, newdata = iris)
+pred$threshold
+```
+
+```{r}
+table(as.data.frame(pred)$response)
+```
+
+```{r}
+pred = setThreshold(pred, c(setosa = 0.01, versicolor = 50, virginica = 1))
+pred$threshold
+```
+
+```{r}
+table(as.data.frame(pred)$response)
+```
+
+## Visualizing the prediction
+The function `plotLearnerPrediction` allows to visualize predictions, e.g., for teaching purposes or exploring models. It trains the chosen learning method for 1 or 2 selected features and then displays the predictions with ggplot.
+
+For *classification*:
+
+* We get a scatter plot of 2 features (by default the first 2 in the data set). 
+* The type of symbol shows the true class labels of the data points. 
+* Symbols with white border indicate misclassified observations. 
+* The posterior probabilities (if the learner under consideration supports this) are represented by the background color where higher saturation means larger probabilities.
+
+The plot title displays the ID of the Learner (in the following example CART), its parameters, its training performance and its cross-validation performance. mmce stands for mean misclassification error, i.e., the error rate. See the sections on performance and resampling for further explanations.
+
+```{r}
+lrn = makeLearner("classif.rpart", id = "CART")
+plotLearnerPrediction(lrn, task = iris.task)
+```
+
+For *clustering*:
+
+* We also get a scatter plot of two selected features. 
+* The color of the points indicates the predicted cluster.
+
+```{r}
+lrn = makeLearner("cluster.kmeans")
+plotLearnerPrediction(lrn, task = mtcars.task, 
+                      features = c("disp", "drat"), cv = 0)
+```
+
+For *regression*, there are two types of plots:
+
+* The 1D plot shows the target values in relation to a single feature, the regression curve and, if the chosen learner supports this, the estimated standard error.
+
+```{r}
+plotLearnerPrediction("regr.lm", features = "lstat", task = bh.task)
+```
+
+* The 2D variant, as in the classification case, generates a scatter plot of 2 features.  
+    + The fill color of the dots illustrates the value of the target variable "medv", the background colors show the estimated mean.  
+    + The plot does not represent the estimated standard error.  
+  
+```{r}
+plotLearnerPrediction("regr.lm", features = c("lstat", "rm"), task = bh.task)
 ```
 
