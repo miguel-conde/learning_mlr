@@ -179,7 +179,7 @@ acc$minimize
 
 Of course, you can pass other measures and also a list of measures to tuneParams. In the latter case the first measure is optimized during tuning, the others are simply evaluated. If you are interested in optimizing several measures simultaneously have a look at Advanced Tuning.
 
-In the example belo:
+In the example below:
 
 * We calculate the accuracy (acc) instead of the error rate. 
 * We use function setAggregation, as described on the resampling page, to additionally obtain the standard deviation of the accuracy. 
@@ -212,3 +212,74 @@ res = tuneParams("classif.ksvm", task = iris.task,
 res
 ```
 
+Accessing the tuning result
+The result object TuneResult allows you to access the best found settings `$x` and their estimated performance `$y`.
+```{r}
+res$x
+```
+
+```{r}
+res$y
+```
+We can generate a Learner with optimal hyperparameter settings as follows:
+```{r}
+lrn = setHyperPars(makeLearner("classif.ksvm"), par.vals = res$x)
+lrn
+```
+
+Then you can proceed as usual. Here we refit and predict the learner on the complete iris data set:
+```{r}
+m = train(lrn, iris.task)
+predict(m, task = iris.task)
+```
+
+But what if you wanted to inspect the other points on the search path, not just the optimal?
+
+## Investigating hyperparameter tuning effects
+We can inspect all points evaluated during the search by using generateHyperParsEffectData:
+```{r}
+generateHyperParsEffectData(res)
+```
+
+Note that the result of generateHyperParsEffectData contains the parameter values on the original scale. In order to get the transformed parameter values instead, use the trafo argument:
+
+```{r}
+generateHyperParsEffectData(res, trafo = TRUE)
+```
+
+
+we can also generate performance on the train data along with the validation/test data:
+```{r}
+rdesc2 = makeResampleDesc("Holdout", predict = "both")
+
+res2 = tuneParams("classif.ksvm", task = iris.task, resampling = rdesc2,
+                  par.set = num_ps,
+                  control = ctrl, 
+                  measures = list(acc, setAggregation(acc, train.mean)),
+                  show.info = FALSE)
+
+generateHyperParsEffectData(res2)
+```
+We can also easily visualize the points evaluated by using plotHyperParsEffect. In the example below, we plot the performance over iterations, using the res from the previous section but instead with 2 performance measures:
+
+```{r}
+res = tuneParams("classif.ksvm", task = iris.task, 
+                 resampling = rdesc, 
+                 par.set = num_ps,
+                 control = ctrl, measures = list(acc, mmce),
+                 show.info = FALSE)
+
+data = generateHyperParsEffectData(res)
+
+plotHyperParsEffect(data, x = "iteration", y = "acc.test.mean",
+                    plot.type = "line")
+```
+
+Note that by default, we only plot the current global optima. This can be changed with the global.only argument.
+
+## Further comments
+* Tuning works for all other tasks like regression, survival analysis and so on in a completely similar fashion.
+
+* In longer running tuning experiments it is very annoying if the computation stops due to numerical or other errors. Have a look at on.learner.error in configureMlr as well as the examples given in section Configure mlr of this tutorial. You might also want to inform yourself about impute.val in TuneControl.
+
+* As we continually optimize over the same data during tuning, the estimated performance value might be optimistically biased. A clean approach to ensure unbiased performance estimation is nested resampling, where we embed the whole model selection process into an outer resampling loop.
