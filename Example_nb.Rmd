@@ -1,0 +1,61 @@
+---
+title: "R Notebook"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+
+```{r}
+if(!require(mlr)) {
+  install.packages("mlr")
+  library(mlr)
+}
+
+data(iris)
+
+## Define the task
+task = makeClassifTask(id = "tutorial", data = iris, target = "Species")
+print(task)
+
+## Define the learner
+lrn = makeLearner("classif.randomForest")
+print(lrn)
+
+## Create a Search Space for the mtry hyperparameter from 1 to 20
+ps = makeParamSet(
+  makeDiscreteParam("mtry", values = 1:(ncol(iris) - 1))
+)
+
+## Optimization algorithm: random search with 10 iterations
+ctrl = makeTuneControlRandom(maxit = 10L)
+
+## Evaluation method  
+# Define the Resampling Strategy: 3-fold CV
+# Performance measure: list(acc, mmce) in tuneParams()
+rdesc = makeResampleDesc(method = "CV", iters = 3L, stratify = TRUE)
+print(rdesc)
+
+## Perform the tuning
+res = tuneParams(lrn, task = iris.task,
+                 par.set = ps, 
+                 control = ctrl, 
+                 resampling = rdesc, 
+                 measures = list(acc, mmce),
+                 show.info = TRUE)
+
+res
+
+## Generate a Learner with optimal hyperparameter settings
+lrn = setHyperPars(makeLearner("classif.randomForest"), par.vals = res$x)
+lrn
+
+## refit and predict the learner on the complete iris data set:
+m = train(lrn, iris.task)
+pred <- predict(m, task = iris.task)
+pred
+
+calculateConfusionMatrix(pred)
+```
+```
+
